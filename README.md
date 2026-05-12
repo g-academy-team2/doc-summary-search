@@ -10,8 +10,8 @@
 ## 🎲 conventional commits
 
 master에 직접 push❌
-1. feature브랜치에서 기능개발
-2. (가능하다면 코드리뷰 후에) develop 브랜치에 merge
+1. feature에서 기능개발
+2. (가능하다면 코드리뷰 후에) develop 에 merge
 
 ### 예시) [feature/1] 기능 구현
 
