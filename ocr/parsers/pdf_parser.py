@@ -1,60 +1,49 @@
-import pdfplumber
 import os
-import re  # 정규표현식 도구 추가!
+import logging
+import pdfplumber
+from .vision_helper import get_text_from_image_bytes # ✨ 공통의 '눈' 불러오기
+from io import BytesIO
 
-# === [새로 추가된 데이터 세탁기(전처리) 함수] ===
-def clean_text(raw_text):
-    text = raw_text
-    
-    # 1. 깨진 한글 수동 복원 (자주 깨지는 글자들)
-    broken_words = {'핚': '한', '핛': '할', '갂': '간', '싞': '신', '모듞': '모든', '젂': '전'}
-    for broken, fixed in broken_words.items():
-        text = text.replace(broken, fixed)
-        
-    # 2. 불필요한 기호 및 페이지 번호 제거 (-1-, -2- 등)
-    text = text.replace("", "")
-    text = re.sub(r'-\s*\d+\s*-', '', text) # 페이지 번호 패턴 삭제
-    
-    # 3. 중간에 뚝 끊긴 줄바꿈 이어 붙이기 
-    # (엔터가 한 번만 쳐진 곳은 띄어쓰기로 바꾸고, 두 번 쳐진 문단 구분은 유지)
-    text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
-    
-    # 4. 쓸데없이 넓은 띄어쓰기(공백)를 하나로 압축
-    text = re.sub(r' +', ' ', text)
-    
-    return text.strip()
-# =================================================
+logger = logging.getLogger(__name__)
 
 def extract_text_from_pdf(file_path):
-    print(f"🔍 [{file_path}] 파일 분석을 시작합니다...")
-    full_text = ""
-    
+    """텍스트 추출과 Vision OCR을 결합한 하이브리드 파서"""
     if not os.path.exists(file_path):
-        return "❌ 파일을 찾을 수 없습니다."
+        logger.error(f"❌ 파일을 찾을 수 없습니다: {file_path}")
+        return ""
 
+    full_text_list = []
+    
     try:
         with pdfplumber.open(file_path) as pdf:
-            print(f"📄 총 {len(pdf.pages)}페이지를 발견했습니다.\n")
             for i, page in enumerate(pdf.pages):
-                text = page.extract_text() 
-                if text:
-                    full_text += text + "\n\n" # 문단 구분을 위해 엔터 두 번
-                print(f"  ✔️ {i+1}페이지 추출 완료")
+                # 1. 일단 일반적인 방법으로 텍스트 추출 시도
+                text = page.extract_text()
                 
-        print("\n✨ 파싱 완료! 텍스트 전처리를 시작합니다...")
-        
-        # 여기서 방금 만든 세탁기 함수를 통과시킵니다!
-        cleaned_text = clean_text(full_text) 
-        
-        return cleaned_text
+                # 2. 글자가 너무 없거나(이미지 위주) 인식 실패 시 OpenAI '눈' 가동!
+                if not text or len(text.strip()) < 50:
+                    logger.info(f"👀 {i+1}페이지 텍스트 부족(약 {len(text) if text else 0}자). AI Vision 모드 가동...")
+                    
+                    try:
+                        # 페이지를 이미지로 변환 (해상도 150으로 최적화)
+                        page_image = page.to_image(resolution=150).original
+                        
+                        # 이미지를 바이트로 변환하여 vision_helper에 전달
+                        img_buffer = BytesIO()
+                        page_image.save(img_buffer, format="PNG")
+                        
+                        vision_text = get_text_from_image_bytes(img_buffer.getvalue())
+                        if vision_text:
+                            text = vision_text
+                    except Exception as vision_err:
+                        logger.warning(f"⚠️ {i+1}페이지 Vision OCR 실패: {vision_err}")
+                
+                if text:
+                    full_text_list.append(text)
+                logger.info(f"✅ {i+1}/{len(pdf.pages)} 페이지 처리 완료")
+
+        return "\n\n".join(full_text_list)
 
     except Exception as e:
-        return f"❌ 오류가 발생했습니다: {e}"
-
-if __name__ == "__main__":
-    target_pdf = "sample.pdf" 
-    result = extract_text_from_pdf(target_pdf)
-    
-    print("\n=== [전처리 완료된 텍스트 (앞부분 500자)] ===")
-    print(result[:500])
-    print("\n=============================================")
+        logger.error(f"❌ PDF 파싱 중 심각한 오류 발생: {e}")
+        return f"PDF 읽기 실패: {str(e)}"
