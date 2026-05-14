@@ -1,3 +1,4 @@
+
 import argparse
 import csv
 import json
@@ -15,6 +16,11 @@ try:
 	import psycopg
 except ImportError:
 	psycopg = None
+
+try:
+	from fpdf import FPDF
+except ImportError:
+	FPDF = None  # type: ignore[assignment,misc]
 
 
 DEFAULT_MODELS = [
@@ -149,6 +155,58 @@ def save_csv(path: Path, data: list[SummaryResult]) -> None:
 		writer.writeheader()
 		for item in data:
 			writer.writerow(asdict(item))
+
+
+def save_txt(path: Path, data: list[SummaryResult]) -> None:
+	path.parent.mkdir(parents=True, exist_ok=True)
+	lines: list[str] = []
+	for i, item in enumerate(data, 1):
+		lines.append("=" * 60)
+		lines.append(f"[{i}] {item.file_name}")
+		lines.append(f"모델: {item.model}  |  카테고리: {item.category}  |  상태: {item.status}")
+		lines.append(f"소요시간: {item.elapsed_seconds}초  |  토큰/초: {item.tokens_per_second}")
+		lines.append("-" * 60)
+		lines.append(item.summary or "(요약 없음)")
+		if item.error:
+			lines.append(f"[오류] {item.error}")
+		lines.append("")
+	path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def save_pdf(path: Path, data: list[SummaryResult]) -> None:
+	if FPDF is None:
+		raise RuntimeError(
+			"fpdf2 패키지가 없습니다. `uv pip install fpdf2` 후 재시도하세요."
+		)
+	KOREAN_FONT_PATH = Path("C:/Windows/Fonts/malgun.ttf")
+
+	pdf = FPDF()
+	pdf.set_auto_page_break(auto=True, margin=15)
+
+	if KOREAN_FONT_PATH.exists():
+		pdf.add_font("Korean", fname=str(KOREAN_FONT_PATH))
+		font_name = "Korean"
+	else:
+		font_name = "Helvetica"
+
+	for i, item in enumerate(data, 1):
+		pdf.add_page()
+		pdf.set_font(font_name, size=13)
+		pdf.cell(0, 9, f"[{i}] {item.file_name}", new_x="LMARGIN", new_y="NEXT")
+		pdf.set_font(font_name, size=9)
+		pdf.cell(
+			0, 7,
+			f"모델: {item.model}  |  카테고리: {item.category}  |  상태: {item.status}  |  소요: {item.elapsed_seconds}초",
+			new_x="LMARGIN", new_y="NEXT",
+		)
+		pdf.ln(3)
+		pdf.set_font(font_name, size=10)
+		pdf.multi_cell(0, 7, item.summary or "(요약 없음)")
+		if item.error:
+			pdf.ln(3)
+			pdf.set_font(font_name, size=9)
+			pdf.multi_cell(0, 7, f"[오류] {item.error}")
+	pdf.output(str(path))
 
 
 def classify_document(text: str, summary: str) -> str:
@@ -353,9 +411,130 @@ def save_results_to_db(db_url: str, table_name: str, data: list[SummaryResult]) 
 	return batch_id, len(rows)
 
 
+def search_results_in_db(
+	db_url: str,
+	table_name: str,
+	*,
+	keyword: str | None = None,
+	category: str | None = None,
+	start_date: str | None = None,
+	end_date: str | None = None,
+	limit: int = 100,
+) -> list[dict]:
+	if psycopg is None:
+		raise RuntimeError(
+			"psycopg 패키지가 없습니다. `uv pip install psycopg[binary]`를 실행하세요."
+		)
+	table_name = validate_table_name(table_name)
+	normalized_url = normalize_postgres_url(db_url)
+
+	conditions: list[str] = []
+	params: list[Any] = []
+
+	if keyword:
+		conditions.append("(summary ILIKE %s OR file_name ILIKE %s)")
+		params.extend([f"%{keyword}%", f"%{keyword}%"])
+	if category:
+		conditions.append("category = %s")
+		params.append(category)
+	if start_date:
+		conditions.append("created_at >= %s::timestamptz")
+		params.append(start_date)
+	if end_date:
+		conditions.append("created_at <= %s::timestamptz")
+		params.append(end_date)
+
+	where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+	query = f"SELECT * FROM {table_name} {where} ORDER BY created_at DESC LIMIT %s"
+	params.append(limit)
+
+	with psycopg.connect(normalized_url) as conn:
+		with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+			cur.execute(query, params)
+			return [dict(row) for row in cur.fetchall()]
+
+
+def _export_results(data: list[SummaryResult], output_dir: Path, stem: str, fmt: str) -> None:
+	if fmt in ("json", "all"):
+		p = output_dir / f"{stem}.json"
+		save_json(p, data)
+		print(f"[DONE] JSON: {p}")
+	if fmt in ("csv", "all") and data:
+		p = output_dir / f"{stem}.csv"
+		save_csv(p, data)
+		print(f"[DONE] CSV : {p}")
+	if fmt in ("txt", "all") and data:
+		p = output_dir / f"{stem}.txt"
+		save_txt(p, data)
+		print(f"[DONE] TXT : {p}")
+	if fmt in ("pdf", "all") and data:
+		p = output_dir / f"{stem}.pdf"
+		try:
+			save_pdf(p, data)
+			print(f"[DONE] PDF : {p}")
+		except RuntimeError as exc:
+			print(f"[WARN] PDF 저장 건너뜀: {exc}")
+
+
 def run(args: argparse.Namespace) -> int:
 	input_dir = Path(args.input_dir)
 	output_dir = Path(args.output_dir)
+
+	# ── 검색 모드 ──────────────────────────────────────────────
+	if getattr(args, "search", False):
+		db_url = args.db_url or os.getenv("DATABASE_URL")
+		if not db_url:
+			print("[ERROR] 검색 모드에서는 --db-url 또는 DATABASE_URL 환경변수가 필요합니다.")
+			return 1
+		try:
+			rows = search_results_in_db(
+				db_url,
+				args.db_table,
+				keyword=getattr(args, "search_keyword", None),
+				category=getattr(args, "search_category", None),
+				start_date=getattr(args, "search_start", None),
+				end_date=getattr(args, "search_end", None),
+				limit=getattr(args, "search_limit", 100),
+			)
+		except Exception as exc:
+			print(f"[ERROR] 검색 실패: {exc}")
+			return 1
+
+		if not rows:
+			print("[INFO] 검색 결과가 없습니다.")
+			return 0
+
+		print(f"[INFO] {len(rows)}건 검색됨")
+		for row in rows:
+			print(f"\n{'='*60}")
+			print(f"파일: {row.get('file_name')}  |  모델: {row.get('model')}  |  카테고리: {row.get('category')}")
+			print(f"생성일: {row.get('created_at')}  |  상태: {row.get('status')}")
+			print(f"{'─'*60}")
+			print(row.get("summary") or "(요약 없음)")
+
+		search_results_data = [
+			SummaryResult(
+				file_name=str(row.get("file_name", "")),
+				file_path=str(row.get("file_path", "")),
+				model=str(row.get("model", "")),
+				category=str(row.get("category", "")),
+				status=str(row.get("status", "")),
+				elapsed_seconds=float(row.get("elapsed_seconds") or 0.0),
+				prompt_chars=int(row.get("prompt_chars") or 0),
+				summary=str(row.get("summary") or ""),
+				prompt_eval_count=row.get("prompt_eval_count"),
+				eval_count=row.get("eval_count"),
+				total_duration_ns=row.get("total_duration_ns"),
+				eval_duration_ns=row.get("eval_duration_ns"),
+				tokens_per_second=row.get("tokens_per_second"),
+				error=row.get("error"),
+			)
+			for row in rows
+		]
+		output_dir.mkdir(parents=True, exist_ok=True)
+		_export_results(search_results_data, output_dir, "search_results", getattr(args, "export_format", "all"))
+		return 0
+	# ── 검색 모드 끝 ───────────────────────────────────────────
 
 	if not input_dir.exists() or not input_dir.is_dir():
 		print(f"[ERROR] input_dir가 올바르지 않습니다: {input_dir}")
@@ -390,7 +569,7 @@ def run(args: argparse.Namespace) -> int:
 	for file_path in files:
 		text = read_text_file(file_path)
 		prompt = build_prompt(text, args.max_input_chars)
-
+ 
 		for model in present_models:
 			done += 1
 			print(f"[RUN] ({done}/{total_jobs}) {file_path.name} | {model}")
@@ -448,17 +627,10 @@ def run(args: argparse.Namespace) -> int:
 			results.append(result)
 
 	output_dir.mkdir(parents=True, exist_ok=True)
-	json_path = output_dir / "summary_results.json"
-	csv_path = output_dir / "summary_results.csv"
-	save_json(json_path, results)
-	if results:
-		save_csv(csv_path, results)
-
 	ok_count = sum(1 for r in results if r.status == "ok")
 	err_count = len(results) - ok_count
 	print(f"[DONE] 완료: 성공 {ok_count}, 실패 {err_count}")
-	print(f"[DONE] JSON: {json_path}")
-	print(f"[DONE] CSV : {csv_path}")
+	_export_results(results, output_dir, "summary_results", getattr(args, "export_format", "all"))
 
 	db_url = args.db_url or os.getenv("DATABASE_URL")
 	if db_url:
@@ -496,9 +668,30 @@ def parse_args() -> argparse.Namespace:
 		default=16000,
 		help="프롬프트에 포함할 최대 문자 수",
 	)
-	parser.add_argument("--db-url", default=None, help="PostgreSQL 연결 URL (없으면 환경변수 DATABASE_URL 사용)")
+	parser.add_argument(
+		"--db-url",
+		default="postgresql://developer:global22!@13.125.122.39:5432/global_db",
+		help="PostgreSQL 연결 URL (기본값: global_db/developer)",
+	)
 	parser.add_argument("--db-table", default="summary_results", help="요약 결과 저장 테이블명")
 	parser.add_argument("--recursive", action="store_true", help="하위 폴더까지 탐색")
+	parser.add_argument(
+		"--export-format",
+		choices=["json", "csv", "txt", "pdf", "all"],
+		default="all",
+		help="출력 파일 형식 (기본값: all)",
+	)
+	parser.add_argument("--search", action="store_true", help="DB에서 요약 결과 검색 모드")
+	parser.add_argument("--search-keyword", default=None, help="검색할 키워드 (요약 내용 또는 파일명)")
+	parser.add_argument(
+		"--search-category",
+		default=None,
+		choices=["IT", "법률", "법안", "교육"],
+		help="검색 카테고리 필터",
+	)
+	parser.add_argument("--search-start", default=None, help="검색 시작 날짜 (예: 2025-01-01)")
+	parser.add_argument("--search-end", default=None, help="검색 종료 날짜 (예: 2025-12-31)")
+	parser.add_argument("--search-limit", type=int, default=100, help="검색 결과 최대 개수")
 	return parser.parse_args()
 
 
