@@ -14,7 +14,7 @@ async def upload_file(db: Session, file: UploadFile, user_id: str):
         user_id=user_id,
         file_name=file.filename,
         extension=ext,
-        status=FileStatus.PENDING
+        status=FileStatus.UPLOADING
     )
     
     db.add(new_file)
@@ -22,5 +22,6 @@ async def upload_file(db: Session, file: UploadFile, user_id: str):
     db.refresh(new_file)
 
     #여기에서 OCR쪽에 파일 넘기는 코드 작성
+    #이후 status=FileStatus.UPLOADING 가 OCR_ING으로 변경되어야 함.
 
     return new_file

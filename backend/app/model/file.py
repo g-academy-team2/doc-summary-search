@@ -3,7 +3,6 @@ from app.core.database import Base
 import enum
 
 class FileStatus(enum.Enum):
-    PENDING = "대기중"
     UPLOADING = "업로드중"
     OCR_ING = "OCR 처리중"
     SUMMARIZING = "요약중"
