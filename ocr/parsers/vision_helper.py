@@ -1,26 +1,43 @@
 import os
 import base64
 import logging
+import io
 from openai import OpenAI
 from dotenv import load_dotenv
+from PIL import Image
 
-# .env 파일 로드 및 클라이언트 초기화
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# 로그 설정
 logger = logging.getLogger(__name__)
+
+def convert_to_safe_png(image_bytes):
+    """어떤 형식의 이미지든 OpenAI가 좋아하는 PNG 형식으로 강제 변환합니다."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format="PNG")
+        return output_buffer.getvalue()
+        
+    except Exception as e:
+        logger.warning(f"⚠️ 이미지 PNG 변환 실패 (원본 유지): {e}")
+        return image_bytes
+# ---------------------------------------------
 
 def get_text_from_image_bytes(image_bytes):
     """이미지 바이트 데이터를 받아 OpenAI Vision으로 텍스트를 읽어옵니다."""
     if not image_bytes:
         return ""
 
-    # 이미지 인코딩
-    base64_image = base64.b64encode(image_bytes).decode('utf-8')
+    safe_image_bytes = convert_to_safe_png(image_bytes)
+
+    base64_image = base64.b64encode(safe_image_bytes).decode('utf-8')
 
     try:
-        # OpenAI API 호출
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -39,20 +56,19 @@ def get_text_from_image_bytes(image_bytes):
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:image/png;base64,{base64_image}",
-                                "detail": "high"  # ✨ 작은 글자나 표를 더 정밀하게 분석
+                                "detail": "high" 
                             }
                         },
                     ],
                 }
             ],
-            max_tokens=1500, # 표 내용이 길 수 있으므로 넉넉하게 설정
-            temperature=0,   # ✨ 일관성 있는 추출을 위해 창의성을 0으로 설정
+            max_tokens=1500,
+            temperature=0,   
         )
         
         extracted_content = response.choices[0].message.content
         return extracted_content.strip()
 
     except Exception as e:
-        # 에러 발생 시 로그를 남겨 추적 가능하게 함
         logger.error(f"❌ OpenAI Vision API 호출 실패: {e}")
         return ""

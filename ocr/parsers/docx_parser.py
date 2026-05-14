@@ -9,19 +9,16 @@ def extract_text_from_docx(file_path):
         doc = Document(file_path)
         full_text = []
         
-        # 1. 본문 텍스트 추출
         for para in doc.paragraphs:
-            if para.text.strip(): # 비어있지 않은 문단만 추가
+            if para.text.strip(): 
                 full_text.append(para.text)
         
-        # 2. [업그레이드] 표(Table) 속의 텍스트 추출
         for table in doc.tables:
             for row in table.rows:
                 row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
                 if row_text:
-                    full_text.append(" | ".join(row_text)) # 표 내용을 한 줄로 정리
+                    full_text.append(" | ".join(row_text)) 
         
-        # 3. 이미지 속 텍스트 추출 (Vision 활용)
         image_count = 0
         for rel in doc.part.rels.values():
             if "image" in rel.target_ref:

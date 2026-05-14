@@ -17,18 +17,14 @@ def extract_text_from_pdf(file_path):
     try:
         with pdfplumber.open(file_path) as pdf:
             for i, page in enumerate(pdf.pages):
-                # 1. 일단 일반적인 방법으로 텍스트 추출 시도
                 text = page.extract_text()
                 
-                # 2. 글자가 너무 없거나(이미지 위주) 인식 실패 시 OpenAI '눈' 가동!
                 if not text or len(text.strip()) < 50:
                     logger.info(f"👀 {i+1}페이지 텍스트 부족(약 {len(text) if text else 0}자). AI Vision 모드 가동...")
                     
                     try:
-                        # 페이지를 이미지로 변환 (해상도 150으로 최적화)
                         page_image = page.to_image(resolution=150).original
                         
-                        # 이미지를 바이트로 변환하여 vision_helper에 전달
                         img_buffer = BytesIO()
                         page_image.save(img_buffer, format="PNG")
                         
