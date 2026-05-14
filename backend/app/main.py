@@ -7,9 +7,10 @@ from fastapi import Depends                             #3
 from app.services import auth_service                   #3
 from app.core.database import get_db                    #3
 from fastapi.security import OAuth2PasswordRequestForm  #4
+from backend.app.api import ocr
 
 #0
-app = FastAPI()
+app = FastAPI(title="문서 요약 및 검색 서비스 API")
 
 #1
 Base.metadata.create_all(bind=engine)
@@ -18,6 +19,8 @@ Base.metadata.create_all(bind=engine)
 class RegisterRequest(BaseModel):
     user_id: str
     user_pw: str
+      
+app.include_router(ocr.router)
 
 #3 :: 회원가입 :: #2에서 변환한 데이터를 auth_service로 전송, 세션+
 @app.post("/user/join")
@@ -34,8 +37,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
-
+    return {"message": "서버가 정상 가동 중입니다. /docs 에서 테스트해 보세요!"}
 
 
 
