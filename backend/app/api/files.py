@@ -4,7 +4,7 @@ from app.services.auth_service import get_current_user
 from app.core.database import get_db
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/user", tags=["auth"])
+router = APIRouter(prefix="/file", tags=["upload"])
 
 @router.post("/doc")
 async def upload(
