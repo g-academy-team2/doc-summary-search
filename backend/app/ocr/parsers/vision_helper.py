@@ -1,74 +1,77 @@
 import os
-import base64
+import re
 import logging
-import io
-from openai import OpenAI
-from dotenv import load_dotenv
-from PIL import Image
+# 상대 경로를 통해 상위 폴더의 db_helper에 접근합니다.
+from ..db_helper import init_db, save_ocr_result
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    from .pdf_parser import extract_text_from_pdf
+    from .docx_parser import extract_text_from_docx
+    from .pptx_parser import extract_text_from_pptx
+    from .hwp_parser import extract_text_from_hwp
+except ImportError:
+    from pdf_parser import extract_text_from_pdf
+    from docx_parser import extract_text_from_docx
+    from pptx_parser import extract_text_from_pptx
+    from hwp_parser import extract_text_from_hwp
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def convert_to_safe_png(image_bytes):
-    """어떤 형식의 이미지든 OpenAI가 좋아하는 PNG 형식으로 강제 변환합니다."""
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-            
-        output_buffer = io.BytesIO()
-        img.save(output_buffer, format="PNG")
-        return output_buffer.getvalue()
-        
-    except Exception as e:
-        logger.warning(f"⚠️ 이미지 PNG 변환 실패 (원본 유지): {e}")
-        return image_bytes
-# ---------------------------------------------
+# 파서 모듈이 로드될 때 DB 테이블이 없다면 생성합니다.
+init_db()
 
-def get_text_from_image_bytes(image_bytes):
-    """이미지 바이트 데이터를 받아 OpenAI Vision으로 텍스트를 읽어옵니다."""
-    if not image_bytes:
-        return ""
+def clean_text(text):
+    """공백 및 특수문자 정제 (세탁기)"""
+    if not text: return ""
+    
+    text = re.sub(r'[^\w\s\.,!?가-힣a-zA-Z0-9\-\(\)\[\]★☆▶▷➔→·]', ' ', text)
+    text = re.sub(r' {2,}', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
 
-    safe_image_bytes = convert_to_safe_png(image_bytes)
+def total_parser(file_path):
+    """확장자에 따라 전문가에게 일을 배분하고 결과를 공용 DB에 저장하는 엔진"""
+    if not os.path.exists(file_path):
+        return f"❌ 파일을 찾을 수 없습니다: {file_path}"
 
-    base64_image = base64.b64encode(safe_image_bytes).decode('utf-8')
+    # 파일명과 확장자 추출 (DB 저장용)
+    filename = os.path.basename(file_path)
+    ext = os.path.splitext(file_path)[1].lower()
+    file_type = ext.replace('.', '') # 'pdf', 'hwp' 등
+    
+    logger.info(f"📂 [{ext}] 파일 분석 모드 가동: {filename}")
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "너는 문서 이미지를 텍스트로 변환하는 OCR 전문가야. 친절한 설명은 생략하고, 오직 이미지에서 보이는 텍스트와 표의 내용만 정확하게 추출해서 반환해줘."
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text", 
-                            "text": "이 이미지 속의 모든 글자를 읽어서 텍스트로 추출해줘. 표가 있다면 표의 구조를 유지하며 텍스트로 정리해줘."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}",
-                                "detail": "high" 
-                            }
-                        },
-                    ],
-                }
-            ],
-            max_tokens=1500,
-            temperature=0,   
-        )
-        
-        extracted_content = response.choices[0].message.content
-        return extracted_content.strip()
+    if ext == ".ppt":
+        return "❌ .ppt 파일은 이전 버전 형식입니다. [.pptx] 형식으로 변환 후 다시 업로드해 주세요."
 
-    except Exception as e:
-        logger.error(f"❌ OpenAI Vision API 호출 실패: {e}")
-        return ""
+    raw_text = ""
+    
+    # 확장자별 파서 호출
+    if ext == ".pdf":
+        raw_text = extract_text_from_pdf(file_path)
+    elif ext == ".docx":
+        raw_text = extract_text_from_docx(file_path)
+    elif ext == ".pptx":
+        raw_text = extract_text_from_pptx(file_path)
+    elif ext == ".hwp":
+        raw_text = extract_text_from_hwp(file_path)
+    else:
+        return f"❌ 지원하지 않는 확장자입니다: {ext}"
+    
+    if not raw_text or len(raw_text.strip()) == 0:
+        return "⚠️ 파일에서 텍스트를 추출하지 못했습니다."
+    
+    # 텍스트 정제
+    cleaned_text = clean_text(raw_text)
+
+    # 💡 [핵심 추가]: 정제된 텍스트를 공용 PostgreSQL DB에 저장합니다.
+    if cleaned_text:
+        doc_id = save_ocr_result(filename, file_type, cleaned_text)
+        if doc_id:
+            logger.info(f"✅ DB 저장 성공 (ID: {doc_id})")
+        else:
+            logger.warning("⚠️ DB 저장에 실패했습니다. (권한이나 네트워크 확인 필요)")
+    
+    return cleaned_text

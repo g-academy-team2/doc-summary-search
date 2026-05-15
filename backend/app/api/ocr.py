@@ -30,7 +30,7 @@ async def upload_documents(files: list[UploadFile] = File(description="업로드
             results.append({
                 "filename": file.filename,
                 "status": "success",
-                "text_preview": extracted_text[:1000]
+                "text": extracted_text
             })
         except Exception as e:
             results.append({
