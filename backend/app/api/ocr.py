@@ -5,7 +5,7 @@ from pydantic import WithJsonSchema
 import os
 import shutil
 
-from ocr.parsers.multi_parser import total_parser
+from app.ocr.parsers.multi_parser import total_parser
 
 UploadFile = Annotated[UF, WithJsonSchema({"type": "string", "format": "binary"})]
 

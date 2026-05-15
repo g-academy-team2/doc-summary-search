@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import UploadFile, HTTPException
 from app.model.file import File, FileStatus
 
-ALLOWED_EXTENSIONS = ["pdf", "pdf", "docx", "hwp"]
+ALLOWED_EXTENSIONS = ["pdf", "pptx", "docx", "hwp"]
 
 async def upload_file(db: Session, file: UploadFile, user_id: str):
     ext = file.filename.split(".")[-1].lower()

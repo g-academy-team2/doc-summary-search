@@ -5,7 +5,7 @@ from app.services import auth_service
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 
-router = APIRouter(prefix="/user", tags=["auth"])
+router = APIRouter(prefix="/user", tags=["au34th"])
 
 class RegisterRequest(BaseModel):
     user_id: str
