@@ -2,20 +2,24 @@ import { useState } from "react";
 // input 타입 정의 이게 타입에 text냐 email이냐 password따라 갈림.
 // type 설정은 일단 여기에 작성을 하나, 추후 types폴더를 생성해서 거기에 둘 생각입니다.
 type InputProps = {
+  name: string;
   type?: "text" | "email" | "password";
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   error?: string;
+  autoComplete?: string; // 브라우저 자동완성 호환용.
 };
 
 // 일단 기본적으로 text타입으로 정의를 함.
 export default function Input({
+  name,
   type = "text",
   value,
   onChange,
   placeholder,
   error,
+  autoComplete,
 }: InputProps) {
   const isPassword = type === "password";
   const [show, setShow] = useState(false);
@@ -23,7 +27,9 @@ export default function Input({
     <div className="relative">
       {/* input의 타입이 password일경우 password를 확인하는 checkpassword input을 추가함. */}
       <input
+        name={name}
         type={isPassword ? (show ? "text" : "password") : type}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
