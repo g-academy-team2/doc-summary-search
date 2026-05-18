@@ -1,77 +1,55 @@
 import os
-import re
 import logging
-# 상대 경로를 통해 상위 폴더의 db_helper에 접근합니다.
-from ..db_helper import init_db, save_ocr_result
+import pdfplumber
+import uuid
+# 💡 우리가 아까 새로 만든 Tesseract 비전 헬퍼를 불러옵니다!
+from app.ocr.parsers.vision_helper import extract_text_from_image 
 
-try:
-    from .pdf_parser import extract_text_from_pdf
-    from .docx_parser import extract_text_from_docx
-    from .pptx_parser import extract_text_from_pptx
-    from .hwp_parser import extract_text_from_hwp
-except ImportError:
-    from pdf_parser import extract_text_from_pdf
-    from docx_parser import extract_text_from_docx
-    from pptx_parser import extract_text_from_pptx
-    from hwp_parser import extract_text_from_hwp
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 파서 모듈이 로드될 때 DB 테이블이 없다면 생성합니다.
-init_db()
-
-def clean_text(text):
-    """공백 및 특수문자 정제 (세탁기)"""
-    if not text: return ""
-    
-    text = re.sub(r'[^\w\s\.,!?가-힣a-zA-Z0-9\-\(\)\[\]★☆▶▷➔→·]', ' ', text)
-    text = re.sub(r' {2,}', ' ', text)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    
-    return text.strip()
-
-def total_parser(file_path):
-    """확장자에 따라 전문가에게 일을 배분하고 결과를 공용 DB에 저장하는 엔진"""
+def extract_text_from_pdf(file_path):
+    """텍스트 추출과 Vision OCR을 결합한 하이브리드 파서"""
     if not os.path.exists(file_path):
-        return f"❌ 파일을 찾을 수 없습니다: {file_path}"
+        logger.error(f"❌ 파일을 찾을 수 없습니다: {file_path}")
+        return ""
 
-    # 파일명과 확장자 추출 (DB 저장용)
-    filename = os.path.basename(file_path)
-    ext = os.path.splitext(file_path)[1].lower()
-    file_type = ext.replace('.', '') # 'pdf', 'hwp' 등
+    full_text_list = []
     
-    logger.info(f"📂 [{ext}] 파일 분석 모드 가동: {filename}")
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                
+                # 💡 글자가 없거나 너무 적으면(스캔본) 이미지로 변환해서 비전 헬퍼에게 넘깁니다!
+                if not text or len(text.strip()) < 50:
+                    logger.info(f"👀 {i+1}페이지 텍스트 부족. AI Vision 모드 가동...")
+                    
+                    try:
+                        # 1. 페이지를 이미지 객체로 변환
+                        page_image = page.to_image(resolution=150).original
+                        
+                        # 2. 임시 파일로 저장 (비전 헬퍼가 파일 경로를 필요로 하기 때문)
+                        temp_img_path = f"temp_page_{uuid.uuid4().hex}.png"
+                        page_image.save(temp_img_path, format="PNG")
+                        
+                        # 3. 비전 헬퍼에게 이미지 읽기 지시
+                        vision_text = extract_text_from_image(temp_img_path)
+                        
+                        # 4. 다 쓴 임시 이미지 파일 삭제
+                        if os.path.exists(temp_img_path):
+                            os.remove(temp_img_path)
+                            
+                        if vision_text:
+                            text = vision_text
+                    except Exception as vision_err:
+                        logger.warning(f"⚠️ {i+1}페이지 Vision OCR 실패: {vision_err}")
+                
+                if text:
+                    full_text_list.append(text)
+                logger.info(f"✅ {i+1}/{len(pdf.pages)} 페이지 처리 완료")
 
-    if ext == ".ppt":
-        return "❌ .ppt 파일은 이전 버전 형식입니다. [.pptx] 형식으로 변환 후 다시 업로드해 주세요."
+        return "\n\n".join(full_text_list)
 
-    raw_text = ""
-    
-    # 확장자별 파서 호출
-    if ext == ".pdf":
-        raw_text = extract_text_from_pdf(file_path)
-    elif ext == ".docx":
-        raw_text = extract_text_from_docx(file_path)
-    elif ext == ".pptx":
-        raw_text = extract_text_from_pptx(file_path)
-    elif ext == ".hwp":
-        raw_text = extract_text_from_hwp(file_path)
-    else:
-        return f"❌ 지원하지 않는 확장자입니다: {ext}"
-    
-    if not raw_text or len(raw_text.strip()) == 0:
-        return "⚠️ 파일에서 텍스트를 추출하지 못했습니다."
-    
-    # 텍스트 정제
-    cleaned_text = clean_text(raw_text)
-
-    # 💡 [핵심 추가]: 정제된 텍스트를 공용 PostgreSQL DB에 저장합니다.
-    if cleaned_text:
-        doc_id = save_ocr_result(filename, file_type, cleaned_text)
-        if doc_id:
-            logger.info(f"✅ DB 저장 성공 (ID: {doc_id})")
-        else:
-            logger.warning("⚠️ DB 저장에 실패했습니다. (권한이나 네트워크 확인 필요)")
-    
-    return cleaned_text
+    except Exception as e:
+        logger.error(f"❌ PDF 파싱 중 심각한 오류 발생: {e}")
+        return f"PDF 읽기 실패: {str(e)}"

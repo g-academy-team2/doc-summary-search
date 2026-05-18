@@ -2,16 +2,10 @@ import os
 import re
 import logging
 
-try:
-    from .pdf_parser import extract_text_from_pdf
-    from .docx_parser import extract_text_from_docx
-    from .pptx_parser import extract_text_from_pptx
-    from .hwp_parser import extract_text_from_hwp
-except ImportError:
-    from pdf_parser import extract_text_from_pdf
-    from docx_parser import extract_text_from_docx
-    from pptx_parser import extract_text_from_pptx
-    from hwp_parser import extract_text_from_hwp
+from app.ocr.parsers.pdf_parser import extract_text_from_pdf
+from app.ocr.parsers.docx_parser import extract_text_from_docx
+from app.ocr.parsers.pptx_parser import extract_text_from_pptx
+from app.ocr.parsers.hwp_parser import extract_text_from_hwp
 
 logger = logging.getLogger(__name__)
 

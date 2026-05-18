@@ -1,8 +1,12 @@
+import os
 import logging
 import olefile
 import zlib
 import subprocess
-from .vision_helper import get_text_from_image_bytes
+import uuid # 💡 임시 파일 생성을 위해 추가
+
+# 💡 1. 새로운 비전 헬퍼 함수명과 절대 경로로 수정했습니다.
+from app.ocr.parsers.vision_helper import extract_text_from_image
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +77,25 @@ def extract_text_from_hwp(file_path):
                         pass 
 
                     image_count += 1
-                    vision_text = get_text_from_image_bytes(img_data)
+                    
+                    # 💡 2. 바이트 데이터를 임시 이미지 파일로 저장합니다.
+                    temp_img_path = f"temp_hwp_img_{uuid.uuid4().hex}.png"
+                    with open(temp_img_path, "wb") as img_file:
+                        img_file.write(img_data)
+                        
+                    # 💡 3. 실제 파일 경로를 넘겨서 비전 헬퍼에게 읽게 합니다.
+                    vision_text = extract_text_from_image(temp_img_path)
+                    
+                    # 💡 4. 다 쓴 임시 파일은 즉시 삭제!
+                    if os.path.exists(temp_img_path):
+                        os.remove(temp_img_path)
+                    
                     if vision_text:
                         full_text.append(f"\n[이미지 내 텍스트 분석 결과]:\n{vision_text}")
-                except Exception:
+                except Exception as inner_e:
+                    logger.warning(f"⚠️ 개별 이미지 처리 중 건너뜀: {inner_e}")
                     continue
+                    
         logger.info(f"✅ 이미지 OCR 분석 완료 ({image_count}개)")
     except Exception as e:
         logger.error(f"❌ 이미지 추출 프로세스 에러: {e}")
