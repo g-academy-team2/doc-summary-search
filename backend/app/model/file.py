@@ -22,7 +22,7 @@ class File(Base):
     file_id = Column(Integer, primary_key=True, autoincrement=True)
     file_name = Column(String, index=True)
     extension = Column(String)
-    status = Column(Enum(FileStatus))
+    status = Column(Enum(FileStatus), default=FileStatus.UPLOADING)
     summary = Column(Text)
     summary_day = Column(DateTime)
     category = Column(Enum(Filecategory))
