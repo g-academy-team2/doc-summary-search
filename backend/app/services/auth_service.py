@@ -1,12 +1,11 @@
 from passlib.context import CryptContext    #0
 from sqlalchemy.orm import Session          #1
 from app.model.user import User             #1
-from fastapi import HTTPException, Depends  #1
-from jose import jwt, JWTError              #2, 4
+from fastapi import HTTPException  #1
+from jose import jwt            #2
 from datetime import datetime, timedelta    #2
 import os                                   #2
-from fastapi.security import OAuth2PasswordBearer # 4
-from app.core.database import get_db
+from fastapi import Request
 
 #0 #https://zambbon.tistory.com/52
 bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated="auto")
@@ -53,23 +52,10 @@ def login(db: Session, user_id: str, user_pw: str):
 
     return token
 
-#4 :: 로그인 상태 확인
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("sub")
+#4 :: @router.post("/doc") upload에서 요청한 토큰에서 id 분리 작업 후 반환
+def get_user_id_from_token(request: Request) -> str:
+    token = request.headers.get("Authorization").split(" ")[1]
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    return payload.get("sub")
 
-        if not user_id:
-            raise HTTPException(status_code=401, detail="인증 실패")
-        
-    except JWTError:
-        raise HTTPException(status_code=401, detail="인증 실패")
-    
-    user = db.query(User).filter(User.user_id == user_id).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="유저 없음")
-    
-    return user
