@@ -7,13 +7,9 @@ router = APIRouter(prefix="/file", tags=["upload"])
 
 # 사용자가 올린 파일 받기
 @router.post("/doc")
-async def upload( #async 추가된 이유 : 파일 업로드 느려서 다른 처리도 동시에 하기 위해
-    request: Request, # 헤더 토큰에서 id값 빼기 위함
-    file: UploadFile,
-    db: Session = Depends(get_db)
-):
-    user_id = auth_service.get_user_id_from_token(request) #id 빼기
-    return await file_service.upload_file(db, file, user_id) #필요한 곳에 반환
+async def upload(request: Request, file: UploadFile, force: bool = False, db: Session = Depends(get_db)):
+    user_id = auth_service.get_user_id_from_token(request)
+    return await file_service.upload_file(db, file, user_id, force)
 
 # 요약 진행중 파일 리스트
 @router.get("/doc/ongoing")
@@ -35,6 +31,6 @@ async def search(request: Request, file_name: str, db: Session = Depends(get_db)
 
 # 파일 삭제
 @router.delete("/doc/{file_id}")
-async def delete(request: Request, file_id: int, db: Session = Depends(get_db)):
+async def delete(request: Request, file_id: str, db: Session = Depends(get_db)):
     user_id = auth_service.get_user_id_from_token(request)
     return file_service.delete_file(db, user_id, file_id)
