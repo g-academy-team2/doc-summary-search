@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import UploadPage from "./pages/UploadPage";
 import LoginPage from "./pages/LoginPage";
 import JoinPage from "./pages/JoinPage";
+import SearchPage from "./pages/SearchPage";
 function App() {
   return (
     <BrowserRouter>
@@ -11,6 +12,7 @@ function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/join" element={<JoinPage />} />
+        <Route path="/search" element={<SearchPage />} />
       </Routes>
     </BrowserRouter>
   );

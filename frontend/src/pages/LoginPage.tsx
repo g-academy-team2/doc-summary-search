@@ -13,8 +13,18 @@ function LoginPage() {
       <AuthForm
         title="Log In"
         fields={[
-          { name: "email", type: "email", placeholder: "Email" },
-          { name: "password", type: "password", placeholder: "Password" },
+          {
+            name: "username",
+            type: "text",
+            placeholder: "Username",
+            autoComplete: "username",
+          },
+          {
+            name: "password",
+            type: "password",
+            placeholder: "Password",
+            autoComplete: "current-password",
+          },
         ]}
         values={values}
         onChange={(name, value) => {

@@ -3,8 +3,9 @@ import Input from "./AuthInput";
 // type 설정은 일단 여기에 작성을 하나, 추후 types폴더를 생성해서 거기에 둘 생각입니다.
 type Field = {
   name: string;
-  type?: "text" | "email" | "password";
+  type?: "text" | "password";
   placeholder: string;
+  autoComplete?: string; // 브라우저 자동완성 호환용.
 };
 
 /**
@@ -63,12 +64,14 @@ function AuthForm({
             >
               {fields.map((f) => (
                 <Input
+                  name={f.name}
                   key={f.name}
                   type={f.type}
                   value={values[f.name] || ""}
                   onChange={(v) => onChange(f.name, v)}
                   placeholder={f.placeholder}
                   error={errors?.[f.name]}
+                  autoComplete={f.autoComplete}
                 />
               ))}
 

@@ -10,12 +10,23 @@ function JoinPage() {
     <AuthForm
       title="Create Account"
       fields={[
-        { name: "email", type: "email", placeholder: "Email" },
-        { name: "password", type: "password", placeholder: "Password" },
+        {
+          name: "username",
+          type: "text",
+          placeholder: "Username",
+          autoComplete: "username",
+        },
+        {
+          name: "password",
+          type: "password",
+          placeholder: "Password",
+          autoComplete: "new-password",
+        },
         {
           name: "confirmPassword",
           type: "password",
           placeholder: "Confirm Password",
+          autoComplete: "new-password",
         },
       ]}
       values={values}
