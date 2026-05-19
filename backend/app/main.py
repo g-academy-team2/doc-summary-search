@@ -1,8 +1,17 @@
 from fastapi import FastAPI, Request    
 from fastapi.responses import JSONResponse                    
 from app.core.database import Base, engine              
-from app.model import user, file                        # 유지
-from app.api import auth, files   
+from app.model import user, file                        
+from app.api import auth, files                     
+from pydantic import BaseModel                          
+from sqlalchemy.orm import Session                      
+from fastapi import Depends                             
+from app.services import auth_service                   
+from app.core.database import get_db                    
+from fastapi.security import OAuth2PasswordRequestForm  
+
+# 💡 내 코드 추가: ocr 창구 불러오기
+from app.api import ocr 
 from jose import jwt, JWTError       
 import os
 from dotenv import load_dotenv      
@@ -14,6 +23,8 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth.router)
 app.include_router(files.router)
 
+# 💡 내 코드 추가: ocr 창구 등록하기
+app.include_router(ocr.router)
 load_dotenv()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
@@ -40,6 +51,3 @@ async def auth_middleware(request: Request, call_next): # 요청 정보, 다음 
 @app.get("/")
 async def root():
     return {"message": "서버가 정상 가동 중입니다. /docs 에서 테스트해 보세요!"}
-
-
-

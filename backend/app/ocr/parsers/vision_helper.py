@@ -1,74 +1,38 @@
 import os
-import base64
 import logging
-import io
-from openai import OpenAI
-from dotenv import load_dotenv
 from PIL import Image
-
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import pytesseract
 
 logger = logging.getLogger(__name__)
 
-def convert_to_safe_png(image_bytes):
-    """어떤 형식의 이미지든 OpenAI가 좋아하는 PNG 형식으로 강제 변환합니다."""
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-            
-        output_buffer = io.BytesIO()
-        img.save(output_buffer, format="PNG")
-        return output_buffer.getvalue()
-        
-    except Exception as e:
-        logger.warning(f"⚠️ 이미지 PNG 변환 실패 (원본 유지): {e}")
-        return image_bytes
-# ---------------------------------------------
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def get_text_from_image_bytes(image_bytes):
-    """이미지 바이트 데이터를 받아 OpenAI Vision으로 텍스트를 읽어옵니다."""
-    if not image_bytes:
+def extract_text_from_image(image_path: str) -> str:
+    """
+    오픈소스 OCR(Tesseract)을 사용하여 
+    이미지(jpg, png 등)에서 텍스트를 추출하는 전용 함수입니다.
+    """
+    if not os.path.exists(image_path):
+        logger.error(f"❌ 이미지를 찾을 수 없습니다: {image_path}")
         return ""
 
-    safe_image_bytes = convert_to_safe_png(image_bytes)
-
-    base64_image = base64.b64encode(safe_image_bytes).decode('utf-8')
-
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "너는 문서 이미지를 텍스트로 변환하는 OCR 전문가야. 친절한 설명은 생략하고, 오직 이미지에서 보이는 텍스트와 표의 내용만 정확하게 추출해서 반환해줘."
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text", 
-                            "text": "이 이미지 속의 모든 글자를 읽어서 텍스트로 추출해줘. 표가 있다면 표의 구조를 유지하며 텍스트로 정리해줘."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}",
-                                "detail": "high" 
-                            }
-                        },
-                    ],
-                }
-            ],
-            max_tokens=1500,
-            temperature=0,   
-        )
+        logger.info(f"👁️ 이미지 OCR 분석 시작: {os.path.basename(image_path)}")
         
-        extracted_content = response.choices[0].message.content
-        return extracted_content.strip()
-
+        # 1. 이미지를 파이썬으로 열어줍니다
+        img = Image.open(image_path)
+        
+        # 2. Tesseract OCR을 실행하여 글자를 추출합니다. (한국어+영어)
+        extracted_text = pytesseract.image_to_string(img, lang='kor+eng')
+        
+        # 3. 추출된 텍스트가 비어있지 않다면 반환합니다.
+        if extracted_text and extracted_text.strip():
+            logger.info("✅ 이미지 OCR 분석 완료")
+            return extracted_text.strip()
+        else:
+            logger.warning("⚠️ 이미지에서 읽을 수 있는 텍스트가 없습니다.")
+            return ""
+            
     except Exception as e:
-        logger.error(f"❌ OpenAI Vision API 호출 실패: {e}")
+        logger.error(f"❌ 이미지 OCR 처리 중 오류 발생: {e}")
         return ""

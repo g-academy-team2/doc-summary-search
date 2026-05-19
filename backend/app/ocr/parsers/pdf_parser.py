@@ -1,8 +1,9 @@
 import os
 import logging
 import pdfplumber
-from .vision_helper import get_text_from_image_bytes # ✨ 공통의 '눈' 불러오기
-from io import BytesIO
+import uuid
+# 💡 우리가 아까 새로 만든 Tesseract 비전 헬퍼를 불러옵니다!
+from app.ocr.parsers.vision_helper import extract_text_from_image 
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +20,25 @@ def extract_text_from_pdf(file_path):
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
                 
+                # 💡 글자가 없거나 너무 적으면(스캔본) 이미지로 변환해서 비전 헬퍼에게 넘깁니다!
                 if not text or len(text.strip()) < 50:
-                    logger.info(f"👀 {i+1}페이지 텍스트 부족(약 {len(text) if text else 0}자). AI Vision 모드 가동...")
+                    logger.info(f"👀 {i+1}페이지 텍스트 부족. AI Vision 모드 가동...")
                     
                     try:
+                        # 1. 페이지를 이미지 객체로 변환
                         page_image = page.to_image(resolution=150).original
                         
-                        img_buffer = BytesIO()
-                        page_image.save(img_buffer, format="PNG")
+                        # 2. 임시 파일로 저장 (비전 헬퍼가 파일 경로를 필요로 하기 때문)
+                        temp_img_path = f"temp_page_{uuid.uuid4().hex}.png"
+                        page_image.save(temp_img_path, format="PNG")
                         
-                        vision_text = get_text_from_image_bytes(img_buffer.getvalue())
+                        # 3. 비전 헬퍼에게 이미지 읽기 지시
+                        vision_text = extract_text_from_image(temp_img_path)
+                        
+                        # 4. 다 쓴 임시 이미지 파일 삭제
+                        if os.path.exists(temp_img_path):
+                            os.remove(temp_img_path)
+                            
                         if vision_text:
                             text = vision_text
                     except Exception as vision_err:
