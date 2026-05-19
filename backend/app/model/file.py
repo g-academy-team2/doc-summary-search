@@ -4,8 +4,8 @@ import enum
 from ulid import ULID
 
 class FileStatus(enum.Enum):
-    UPLOADING = "업로드중"
-    SUMMARIZING = "요약중"
+    UPLOADING = "업로드 중"
+    SUMMARIZING = "요약 중"
     DONE = "완료"
     FAILED = "실패"
 
