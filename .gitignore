@@ -18,3 +18,5 @@ uploads/
 # VS Code 등 에디터 설정 파일 무시
 .vscode/
 .idea/
+
+/LLM_datass
