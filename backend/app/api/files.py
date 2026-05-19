@@ -32,3 +32,9 @@ async def get_recent(request: Request, db: Session = Depends(get_db)):
 async def search(request: Request, file_name: str, db: Session = Depends(get_db)):
     user_id = auth_service.get_user_id_from_token(request)
     return file_service.search_file(db, user_id, file_name)
+
+# 파일 삭제
+@router.delete("/doc/{file_id}")
+async def delete(request: Request, file_id: int, db: Session = Depends(get_db)):
+    user_id = auth_service.get_user_id_from_token(request)
+    return file_service.delete_file(db, user_id, file_id)

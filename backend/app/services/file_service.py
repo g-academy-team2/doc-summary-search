@@ -4,7 +4,7 @@ from app.model.file import File, FileStatus
 
 ALLOWED_EXTENSIONS = ["pdf", "pptx", "docx", "hwp"]
 
-#파일 업로드
+# 파일 업로드
 async def upload_file(db: Session, file: UploadFile, user_id: str):
     ext = file.filename.split(".")[-1].lower()
 
@@ -27,23 +27,38 @@ async def upload_file(db: Session, file: UploadFile, user_id: str):
 
     return new_file
 
-#요약 진행중
+# 요약 진행중
 def get_processing_files(db: Session, user_id: str):
     return db.query(File).filter(
         File.user_id == user_id,
         File.status.in_([FileStatus.UPLOADING, FileStatus.OCR_ING, FileStatus.SUMMARIZING])
     ).all()
 
-#최근 파일
+# 최근 파일
 def recent_loaded_file(db: Session, user_id: str):
     return db.query(File).filter(
         File.user_id == user_id,
         File.status.in_([FileStatus.DONE])
     ).order_by(File.summary_day.desc()).limit(5).all()
 
+# 파일 검색
 def search_file(db: Session, user_id: str, file_name: str):
     return db.query(File).filter(
         File.user_id == user_id,
         File.file_name.like(f"%{file_name}%"),
         File.status.in_([FileStatus.DONE])
     ).all()
+
+# 파일 삭제
+def delete_file(db: Session, user_id: str, file_id: int):
+    file = db.query(File).filter(
+        File.user_id == user_id,
+        File.file_id == file_id
+    ).first()
+
+    if not file:
+        raise HTTPException(status_code=404, detail="파일이 없습니다.")
+
+    db.delete(file)
+    db.commit()
+    return {"message": "삭제됐어요."}
