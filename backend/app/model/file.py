@@ -4,17 +4,17 @@ import enum
 from ulid import ULID
 
 class FileStatus(enum.Enum):
-    UPLOADING = "업로드 중"
-    SUMMARIZING = "요약 중"
-    DONE = "완료"
-    FAILED = "실패"
+    UPLOADING = "UPLOADING"
+    SUMMARIZING = "SUMMARIZING"
+    DONE = "DONE"
+    FAILED = "FAILED"
 
 class FileCategory(enum.Enum):
-    Unknown = "기타"
+    Unknown = "Unknown"
     IT = "IT"
-    law = "법률"
-    bill = "법안"
-    education = "교육"
+    law = "law"
+    bill = "bill"
+    education = "education"
 
 class File(Base):
     __tablename__ = "files"
