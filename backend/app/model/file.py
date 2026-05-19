@@ -5,7 +5,6 @@ from ulid import ULID
 
 class FileStatus(enum.Enum):
     UPLOADING = "업로드중"
-    OCR_ING = "OCR 처리중"
     SUMMARIZING = "요약중"
     DONE = "완료"
     FAILED = "실패"
