@@ -1,26 +1,18 @@
 import { useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import type { RootState, AppDispatch } from "../store";
-import { deleteFile } from "../store/slices/fileSlice";
+import { useFiles } from "../hooks/useFiles";
 import Sidebar from "../components/common/Sidebar";
 import SearchFileCard from "../components/search/SearchFileCard";
 
 function SearchPage() {
   const [isOpen, setIsOpen] = useState(false);
-  const files = useSelector((state: RootState) => state.files.files);
-  const dispatch = useDispatch<AppDispatch>();
-
-  // 파일삭제코드
-  const handleDelete = (index: number) => {
-    dispatch(deleteFile(index));
-  };
+  const { files, handleDelete } = useFiles();
 
   return (
     // pages/SearchPage.tsx
-    <div className="Search-container flex m-5 divide-x">
+    <div className="Search-container flex m-5 divide-x min-h-screen">
       <Sidebar />
 
-      <main className="Search-main w-8/10  border rounded-m  flex-1 flex flex-col p-4 pl-10">
+      <main className="Search-main w-8/10  border rounded-m  flex-1 flex flex-col p-4 pl-10 pb-6 ">
         {/* 상단 필터 버튼 영역 */}
         <div className="Search-containerflex gap-4 mb-4 ml-50">
           <div className="relative">
@@ -35,11 +27,12 @@ function SearchPage() {
               <div
                 className={`absolute top-8 left-0 border rounded-lg bg-white shadow-md z-10 w-28 overflow-hidden transition-all duration-100 ${isOpen ? "max-h-40 p-3" : "max-h-0"}`}
               >
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                   <li className="cursor-pointer hover:text-gray-400">IT</li>
                   <li className="cursor-pointer hover:text-gray-400">법률</li>
                   <li className="cursor-pointer hover:text-gray-400">법안</li>
                   <li className="cursor-pointer hover:text-gray-400">교육</li>
+                  <li className="cursor-pointer hover:text-gray-400">기타</li>
                 </ul>
               </div>
             )}

@@ -2,22 +2,37 @@ import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { FileItem } from "../../types/file";
 
+// 파일 전역상태관리
 interface FileState {
   files: FileItem[];
 }
 
 const initialState: FileState = {
   files: [
-    // 체크용 더미데이터
-    { name: "파일명1.word", date: "2026.05.13" },
-    { name: "파일명2.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
-    { name: "파일명3.word", date: "2026.05.13" },
+    {
+      name: "테스트1.pdf",
+      date: "2026.05.19",
+      progress: 0,
+      status: "uploading",
+    },
+    {
+      name: "테스트2.docx",
+      date: "2026.05.19",
+      progress: 40,
+      status: "summarizing",
+    },
+    {
+      name: "테스트3.pdf",
+      date: "2026.05.19",
+      progress: 0,
+      status: "idle",
+    },
+    {
+      name: "테스트4.jpg",
+      date: "2026.05.19",
+      progress: 100,
+      status: "done",
+    },
   ],
 };
 
@@ -30,7 +45,23 @@ const fileSlice = createSlice({
   initialState,
   reducers: {
     addFiles: (state, action: PayloadAction<FileItem[]>) => {
-      state.files.push(...action.payload);
+      const newFiles = action.payload.filter(
+        (newFile) =>
+          !state.files.some((existing) => existing.name === newFile.name),
+      );
+      state.files.push(...newFiles.map((file) => ({ ...file, progress: 0 })));
+    },
+    updateProgress: (
+      state,
+      action: PayloadAction<{ index: number; progress: number }>,
+    ) => {
+      state.files[action.payload.index].progress = action.payload.progress;
+    },
+    updateStatus: (
+      state,
+      action: PayloadAction<{ index: number; status: FileItem["status"] }>,
+    ) => {
+      state.files[action.payload.index].status = action.payload.status;
     },
     deleteFile: (state, action: PayloadAction<number>) => {
       state.files.splice(action.payload, 1);
@@ -41,5 +72,11 @@ const fileSlice = createSlice({
   },
 });
 
-export const { addFiles, deleteFile, clearFiles } = fileSlice.actions;
+export const {
+  addFiles,
+  updateProgress,
+  deleteFile,
+  clearFiles,
+  updateStatus,
+} = fileSlice.actions;
 export default fileSlice.reducer;
