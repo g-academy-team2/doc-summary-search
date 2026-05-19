@@ -1,40 +1,50 @@
-// type
-interface FileUploadProps {
-  files: File[];
-  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
-}
+import { useDispatch } from "react-redux";
+import type { AppDispatch } from "../../store";
+import { addFiles } from "../../store/slices/fileSlice";
 
 // file upload
-function FileUpload({ files, setFiles }: FileUploadProps) {
-  // Drag event
+export default function FileUpload() {
+  const dispatch = useDispatch<AppDispatch>();
+
+  // 임시 파일저장되는 로직
+  const toFileItems = (files: File[]) =>
+    files.map((file) => ({
+      name: file.name,
+      date: new Date()
+        .toLocaleDateString("ko-KR")
+        .replace(/\. /g, ".")
+        .replace(".", ""),
+    }));
+  // 드래그 작동
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
-  //  Dragdrop event
-  const handelDrop = (e: React.DragEvent) => {
+  // 드래그 파일놓음.
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
     const droppedFiles = Array.from(e.dataTransfer.files);
-    setFiles((prev) => [...prev, ...droppedFiles]);
+    dispatch(addFiles(toFileItems(droppedFiles)));
   };
-  // file교체 하는경우
+  // 실수로 파일올린경우 다른파일로 교체.
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
-    setFiles((prev) => [...prev, ...selectedFiles]);
+    dispatch(addFiles(toFileItems(selectedFiles)));
   };
 
   return (
     <div
-      className="flex flex-col items-center w-full"
+      className="Fileupload-container flex flex-col items-center w-full"
       onDragOver={handleDragOver}
-      onDrop={handelDrop}
+      onDrop={handleDrop}
     >
-      <label className="cursor-pointer">
+      <label className="Fileupload-label cursor-pointer">
         <input
           type="file"
           multiple
           onChange={handleFileChange}
           className="hidden"
         />
-        <p className="text-center  text-gray-900/40">
+        <p className="text-center text-gray-900/40">
           요약할 파일을 드래그&드랍
           <br />
           혹은 <span className="underline">직접 선택</span> 하세요
@@ -43,5 +53,3 @@ function FileUpload({ files, setFiles }: FileUploadProps) {
     </div>
   );
 }
-
-export default FileUpload;
