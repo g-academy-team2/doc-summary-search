@@ -1,21 +1,38 @@
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import type { RootState } from "../../store";
+import { useFiles } from "../../hooks/useFiles";
+import FileStatusButtons from "./FileStatusButtons";
 
 function Sidebar() {
   const files = useSelector((state: RootState) => state.files.files);
+  const { handleDelete, handleSummarize } = useFiles();
+
   return (
-    <aside className="Sidebar-container w-2/10 border rounded-m flex flex-col justify-between h-[calc(100vh-40px)]">
+    <aside className="Sidebar-container sticky top-0 w-2/10 border rounded-m flex flex-col justify-between h-screen ">
       <div>
-        <h1 className="Sidebar-title font-bold text-3xl">Logo</h1>
+        <h1 className="font-bold text-3xl">Logo</h1>
       </div>
-      <div className="Sidebar-file-container text-center">
+      <div className="text-center overflow-y-auto">
         {files.length === 0 ? (
           <p>최근 업로드된 파일이 없습니다.</p>
         ) : (
           <ul>
             {files.map((file, index) => (
-              <li key={index}>{file.name}</li>
+              <li
+                key={index}
+                className="border px-2 py-1 mb-1 rounded text-sm flex items-center justify-between"
+              >
+                <p>📄</p>
+                <p className="truncate">{file.name}</p>
+                <FileStatusButtons
+                  file={file}
+                  index={index}
+                  onSummarize={handleSummarize}
+                  onDelete={handleDelete}
+                  size="sm"
+                />
+              </li>
             ))}
           </ul>
         )}
