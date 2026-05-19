@@ -48,15 +48,14 @@ async def upload_file(db: Session, file: UploadFile, user_id: str, force: bool =
     new_file.status = FileStatus.SUMMARIZING
     db.commit()
 
-
     return new_file # 프론트가 이걸 받아서 업로드 완료 표시
 
 # 요약 진행중
-def get_processing_files(db: Session, user_id: str):
-    return db.query(File).filter(
-        File.user_id == user_id,
-        File.status.in_([FileStatus.UPLOADING, FileStatus.SUMMARIZING])
-    ).all()
+# def get_processing_files(db: Session, user_id: str):
+#     return db.query(File).filter(
+#         File.user_id == user_id,
+#         File.status.in_([FileStatus.UPLOADING, FileStatus.SUMMARIZING])
+#     ).all()
 
 # 최근 파일
 def recent_loaded_file(db: Session, user_id: str):

@@ -12,10 +12,10 @@ async def upload(request: Request, file: UploadFile, force: bool = False, db: Se
     return await file_service.upload_file(db, file, user_id, force)
 
 # 요약 진행중 파일 리스트
-@router.get("/doc/ongoing")
-async def get_processing(request: Request, db: Session = Depends(get_db)):
-    user_id = auth_service.get_user_id_from_token(request)
-    return file_service.get_processing_files(db, user_id)
+# @router.get("/doc/ongoing")
+# async def get_processing(request: Request, db: Session = Depends(get_db)):
+#     user_id = auth_service.get_user_id_from_token(request)
+#     return file_service.get_processing_files(db, user_id)
 
 # 최근 요약 파일 리스트
 @router.get("/doc/latest")
